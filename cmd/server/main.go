@@ -21,11 +21,24 @@ func main() {
 	defer conn.Close()
 	fmt.Println("Connected successfully...")
 	// New channel
-	testChannel, err := conn.Channel()
+	channel, err := conn.Channel()
 	if err != nil {
 		log.Fatalf("error opening channel: %v", err)
 	}
 	fmt.Println("Channel opened.")
+
+	// Declare and bind
+	_, queue, err := pubsub.DeclareAndBind(
+		conn,
+		routing.ExchangePerilTopic,
+		routing.GameLogSlug,
+		"game_logs.*",
+		pubsub.Durable,
+	)
+	if err != nil {
+		log.Fatalf("error declaring and binding queue to exchange: %v", err)
+	}
+	fmt.Printf("queue declared and bound: %v.\n", queue.Name)
 
 	// Server Help
 	gamelogic.PrintServerHelp()
@@ -41,7 +54,7 @@ func main() {
 		case "pause":
 			fmt.Println("Sendind a pause message.")
 			pubsub.PublishJSON(
-				testChannel,
+				channel,
 				routing.ExchangePerilDirect,
 				routing.PauseKey,
 				routing.PlayingState{
@@ -51,7 +64,7 @@ func main() {
 		case "resume":
 			fmt.Println("Sending a resume message.")
 			pubsub.PublishJSON(
-				testChannel,
+				channel,
 				routing.ExchangePerilDirect,
 				routing.PauseKey,
 				routing.PlayingState{
@@ -69,9 +82,5 @@ func main() {
 		}
 	}
 
-	// // Waiting for ctrl+c
-	// signalChan := make(chan os.Signal, 1)
-	// signal.Notify(signalChan, os.Interrupt)
-	// <-signalChan
 	fmt.Println("\nShutting down...\nClosing connection...")
 }
