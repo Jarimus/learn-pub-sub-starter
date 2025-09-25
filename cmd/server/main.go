@@ -32,7 +32,7 @@ func main() {
 		conn,
 		routing.ExchangePerilTopic,
 		routing.GameLogSlug,
-		"game_logs.*",
+		routing.GameLogSlug+".*",
 		pubsub.Durable,
 	)
 	if err != nil {
@@ -43,7 +43,6 @@ func main() {
 	// Server Help
 	gamelogic.PrintServerHelp()
 
-	looping := true
 	for {
 		words := gamelogic.GetInput()
 		if len(words) == 0 {
@@ -53,7 +52,7 @@ func main() {
 		switch firstWord {
 		case "pause":
 			fmt.Println("Sendind a pause message.")
-			pubsub.PublishJSON(
+			err = pubsub.PublishJSON(
 				channel,
 				routing.ExchangePerilDirect,
 				routing.PauseKey,
@@ -61,9 +60,12 @@ func main() {
 					IsPaused: true,
 				},
 			)
+			if err != nil {
+				log.Printf("error publishing: %v", err)
+			}
 		case "resume":
 			fmt.Println("Sending a resume message.")
-			pubsub.PublishJSON(
+			err = pubsub.PublishJSON(
 				channel,
 				routing.ExchangePerilDirect,
 				routing.PauseKey,
@@ -71,16 +73,14 @@ func main() {
 					IsPaused: false,
 				},
 			)
+			if err != nil {
+				log.Printf("error publishing: %v", err)
+			}
 		case "quit":
 			fmt.Println("Exiting...")
-			looping = false
+			return
 		default:
 			fmt.Print("Invalid command.\nI understand 'pause', 'resume' and 'quit'.")
 		}
-		if !looping {
-			break
-		}
 	}
-
-	fmt.Println("\nShutting down...\nClosing connection...")
 }

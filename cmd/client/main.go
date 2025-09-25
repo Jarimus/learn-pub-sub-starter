@@ -3,20 +3,12 @@ package main
 import (
 	"fmt"
 	"log"
-	"strconv"
 
 	"github.com/jarimus/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/jarimus/learn-pub-sub-starter/internal/pubsub"
 	"github.com/jarimus/learn-pub-sub-starter/internal/routing"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
-
-func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) {
-	return func(ps routing.PlayingState) {
-		defer fmt.Print("> ")
-		gs.HandlePause(ps)
-	}
-}
 
 func main() {
 	fmt.Println("Starting Peril client...")
@@ -35,34 +27,43 @@ func main() {
 		log.Fatalf("error setting username: %v", err)
 	}
 
-	// Declare and bing the pause key
-	_, queue, err := pubsub.DeclareAndBind(
-		conn,
-		routing.ExchangePerilDirect,
-		routing.PauseKey+"."+username,
-		routing.PauseKey,
-		pubsub.Transient,
-	)
-	if err != nil {
-		log.Fatalf("error declaring and binding queue to exchange: %v", err)
-	}
-	fmt.Printf("queue declared and bound: %v\n", queue.Name)
-
 	// New game state
 	gamestate := gamelogic.NewGameState(username)
 
-	// Subscribe
-	go pubsub.SubscribeJSON(
+	// Subscribe to pauses
+	err = pubsub.SubscribeJSON(
 		conn,
 		routing.ExchangePerilDirect,
-		routing.PauseKey+"."+username,
+		routing.PauseKey+"."+gamestate.GetUsername(),
 		routing.PauseKey,
 		pubsub.Transient,
 		handlerPause(gamestate),
 	)
+	if err != nil {
+		fmt.Printf("error subscribing to pause: %v", err)
+	}
+
+	// Subscribe to player moves
+	err = pubsub.SubscribeJSON(
+		conn,
+		routing.ExchangePerilTopic,
+		routing.ArmyMovesPrefix+"."+username,
+		routing.ArmyMovesPrefix+".*",
+		pubsub.Transient,
+		handlerMove(gamestate),
+	)
+	if err != nil {
+		fmt.Printf("error subscribing to player moves: %v", err)
+	}
+
+	// Open channel
+	publishChannel, err := conn.Channel()
+	if err != nil {
+		log.Fatalf("error opening channel: %v", err)
+	}
+	defer publishChannel.Close()
 
 	// REPL
-	looping := true
 	for {
 		words := gamelogic.GetInput()
 		if len(words) == 0 {
@@ -71,7 +72,7 @@ func main() {
 		firstWord := words[0]
 		switch firstWord {
 		case "spawn":
-			err := gamestate.CommandSpawn(words)
+			err = gamestate.CommandSpawn(words)
 			if err != nil {
 				log.Printf("%v", err)
 			}
@@ -80,19 +81,19 @@ func main() {
 			armyMove, err := gamestate.CommandMove(words)
 			if err != nil {
 				log.Printf("%v", err)
+				break
 			}
-			var units string
-			for i, unit := range armyMove.Units {
-				if i < len(armyMove.Units)-1 {
-					units += strconv.Itoa(unit.ID) + ", "
-				} else {
-					if len(armyMove.Units) > 1 {
-						units += "and " + strconv.Itoa(unit.ID)
-					} else {
-						units += strconv.Itoa(unit.ID)
-					}
-				}
+			err = pubsub.PublishJSON(
+				publishChannel,
+				routing.ExchangePerilTopic,
+				routing.ArmyMovesPrefix+"."+username,
+				armyMove,
+			)
+			if err != nil {
+				fmt.Printf("error publishing move: %v", err)
+				break
 			}
+			fmt.Println("move published successfully")
 		case "status":
 			gamestate.CommandStatus()
 		case "help":
@@ -101,18 +102,9 @@ func main() {
 			fmt.Println("Spamming not allowed!")
 		case "quit":
 			gamelogic.PrintQuit()
-			looping = false
+			return
 		default:
 			fmt.Println("Invalid command.")
 		}
-		if !looping {
-			break
-		}
 	}
-
-	// wait for ctrl+c
-	// signalChan := make(chan os.Signal, 1)
-	// signal.Notify(signalChan, os.Interrupt)
-	// <-signalChan
-	fmt.Println("RabbitMQ connection closed.")
 }
