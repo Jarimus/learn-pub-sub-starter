@@ -6,6 +6,9 @@ import (
 )
 
 func (gs *GameState) CommandSpawn(words []string) error {
+	if gs.isPaused() {
+		return errors.New("the game is paused, you cannot spawn units")
+	}
 	if len(words) < 3 {
 		return errors.New("usage: spawn <location> <rank>")
 	}

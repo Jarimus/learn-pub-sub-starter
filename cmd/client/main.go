@@ -11,6 +11,13 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) {
+	return func(ps routing.PlayingState) {
+		defer fmt.Print("> ")
+		gs.HandlePause(ps)
+	}
+}
+
 func main() {
 	fmt.Println("Starting Peril client...")
 	// Connect
@@ -39,10 +46,20 @@ func main() {
 	if err != nil {
 		log.Fatalf("error declaring and binding queue to exchange: %v", err)
 	}
-	fmt.Printf("queue declared and bound: %v", queue.Name)
+	fmt.Printf("queue declared and bound: %v\n", queue.Name)
 
 	// New game state
 	gamestate := gamelogic.NewGameState(username)
+
+	// Subscribe
+	go pubsub.SubscribeJSON(
+		conn,
+		routing.ExchangePerilDirect,
+		routing.PauseKey+"."+username,
+		routing.PauseKey,
+		pubsub.Transient,
+		handlerPause(gamestate),
+	)
 
 	// REPL
 	looping := true
