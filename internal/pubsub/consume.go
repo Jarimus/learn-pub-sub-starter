@@ -2,7 +2,6 @@ package pubsub
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -38,16 +37,14 @@ func DeclareAndBind(
 	}
 
 	// Declare queue
-	var queueTypeBool bool
-	switch queueType {
-	case Transient:
-		queueTypeBool = false
-	case Durable:
-		queueTypeBool = true
-	default:
-		return nil, amqp.Queue{}, errors.New("invalid queue type")
-	}
-	queue, err := channel.QueueDeclare(queueName, queueTypeBool, !queueTypeBool, !queueTypeBool, false, nil)
+	queue, err := channel.QueueDeclare(
+		queueName,
+		queueType == Durable,
+		queueType != Durable,
+		queueType != Durable,
+		false,
+		amqp.Table{"x-dead-letter-exchange": "peril_dlx"},
+	)
 	if err != nil {
 		return nil, amqp.Queue{}, err
 	}
@@ -110,13 +107,13 @@ func SubscribeJSON[T any](
 			}
 			switch handler(target) {
 			case Ack:
-				// fmt.Print("Acked.")
+				fmt.Print("Acked.")
 				msg.Ack(false)
 			case NackRequeue:
-				// fmt.Print("NackRequeued.")
+				fmt.Print("NackRequeued.")
 				msg.Nack(false, true)
 			case NackDiscard:
-				// fmt.Print("NackDiscarded.")
+				fmt.Print("NackDiscarded.")
 				msg.Nack(false, false)
 			}
 		}

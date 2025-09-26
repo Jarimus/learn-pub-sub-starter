@@ -21,7 +21,7 @@ func main() {
 	defer conn.Close()
 	fmt.Println("Connected successfully...")
 	// New channel
-	channel, err := conn.Channel()
+	publishCh, err := conn.Channel()
 	if err != nil {
 		log.Fatalf("error opening channel: %v", err)
 	}
@@ -53,7 +53,7 @@ func main() {
 		case "pause":
 			fmt.Println("Sendind a pause message.")
 			err = pubsub.PublishJSON(
-				channel,
+				publishCh,
 				routing.ExchangePerilDirect,
 				routing.PauseKey,
 				routing.PlayingState{
@@ -66,7 +66,7 @@ func main() {
 		case "resume":
 			fmt.Println("Sending a resume message.")
 			err = pubsub.PublishJSON(
-				channel,
+				publishCh,
 				routing.ExchangePerilDirect,
 				routing.PauseKey,
 				routing.PlayingState{
