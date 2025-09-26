@@ -21,6 +21,13 @@ func main() {
 	defer conn.Close()
 	fmt.Println("Client connected to RabbitMQ!")
 
+	// Open channel
+	publishChannel, err := conn.Channel()
+	if err != nil {
+		log.Fatalf("error opening channel: %v", err)
+	}
+	defer publishChannel.Close()
+
 	// Welcome message
 	username, err := gamelogic.ClientWelcome()
 	if err != nil {
@@ -50,18 +57,24 @@ func main() {
 		routing.ArmyMovesPrefix+"."+username,
 		routing.ArmyMovesPrefix+".*",
 		pubsub.Transient,
-		handlerMove(gamestate),
+		handlerMove(gamestate, publishChannel),
 	)
 	if err != nil {
 		fmt.Printf("error subscribing to player moves: %v", err)
 	}
 
-	// Open channel
-	publishChannel, err := conn.Channel()
+	// Subscribe to wars
+	err = pubsub.SubscribeJSON(
+		conn,
+		routing.ExchangePerilTopic,
+		routing.WarRecognitionsPrefix,
+		routing.WarRecognitionsPrefix+".*",
+		pubsub.Durable,
+		handlerWar(gamestate),
+	)
 	if err != nil {
-		log.Fatalf("error opening channel: %v", err)
+		fmt.Printf("error subscribing to wars: %v", err)
 	}
-	defer publishChannel.Close()
 
 	// REPL
 	for {

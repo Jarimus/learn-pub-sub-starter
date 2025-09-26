@@ -32,6 +32,7 @@ func (gs *GameState) HandleMove(move ArmyMove) MoveOutcome {
 	overlappingLocation := getOverlappingLocation(player, move.Player)
 	if overlappingLocation != "" {
 		fmt.Printf("You have units in %s! You are at war with %s!\n", overlappingLocation, move.Player.Username)
+
 		return MoveOutcomeMakeWar
 	}
 	fmt.Printf("You are safe from %s's units.\n", move.Player.Username)
