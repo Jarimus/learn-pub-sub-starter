@@ -70,7 +70,7 @@ func main() {
 		routing.WarRecognitionsPrefix,
 		routing.WarRecognitionsPrefix+".*",
 		pubsub.Durable,
-		handlerWar(gamestate),
+		handlerWar(gamestate, publishChannel),
 	)
 	if err != nil {
 		fmt.Printf("error subscribing to wars: %v", err)

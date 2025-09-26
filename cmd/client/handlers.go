@@ -26,7 +26,7 @@ func handlerMove(gs *gamelogic.GameState, publishChan *amqp.Channel) func(gamelo
 		case gamelogic.MoveOutComeSafe:
 			return pubsub.Ack
 		case gamelogic.MoveOutcomeMakeWar:
-			pubsub.PublishJSON(
+			err := pubsub.PublishJSON(
 				publishChan,
 				routing.ExchangePerilTopic,
 				routing.WarRecognitionsPrefix+"."+gs.GetUsername(),
@@ -35,7 +35,10 @@ func handlerMove(gs *gamelogic.GameState, publishChan *amqp.Channel) func(gamelo
 					Defender: gs.GetPlayerSnap(),
 				},
 			)
-			return pubsub.NackRequeue
+			if err != nil {
+				return pubsub.NackRequeue
+			}
+			return pubsub.Ack
 		case gamelogic.MoveOutcomeSamePlayer:
 			return pubsub.NackDiscard
 		default:
@@ -45,20 +48,35 @@ func handlerMove(gs *gamelogic.GameState, publishChan *amqp.Channel) func(gamelo
 	}
 }
 
-func handlerWar(gs *gamelogic.GameState) func(gamelogic.RecognitionOfWar) pubsub.AckType {
+func handlerWar(gs *gamelogic.GameState, publishChan *amqp.Channel) func(gamelogic.RecognitionOfWar) pubsub.AckType {
 	return func(rw gamelogic.RecognitionOfWar) pubsub.AckType {
 		defer fmt.Print("> ")
-		outcome, _, _ := gs.HandleWar(rw)
+		outcome, winner, loser := gs.HandleWar(rw)
 		switch outcome {
 		case gamelogic.WarOutcomeNotInvolved:
 			return pubsub.NackRequeue
 		case gamelogic.WarOutcomeNoUnits:
 			return pubsub.NackDiscard
 		case gamelogic.WarOutcomeOpponentWon:
+			msg := fmt.Sprintf("%s won a war against %s", winner, loser)
+			err := pubsub.PublishGameLogs(publishChan, rw.Attacker.Username, msg)
+			if err != nil {
+				return pubsub.NackRequeue
+			}
 			return pubsub.Ack
 		case gamelogic.WarOutcomeYouWon:
+			msg := fmt.Sprintf("%s won a war against %s", winner, loser)
+			err := pubsub.PublishGameLogs(publishChan, rw.Attacker.Username, msg)
+			if err != nil {
+				return pubsub.NackRequeue
+			}
 			return pubsub.Ack
 		case gamelogic.WarOutcomeDraw:
+			msg := fmt.Sprintf("A war between %s and %s resulted in a draw", winner, loser)
+			err := pubsub.PublishGameLogs(publishChan, rw.Attacker.Username, msg)
+			if err != nil {
+				return pubsub.NackRequeue
+			}
 			return pubsub.Ack
 		}
 		fmt.Print("error: unknown war outcome")
