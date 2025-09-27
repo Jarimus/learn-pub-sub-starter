@@ -27,18 +27,18 @@ func main() {
 	}
 	fmt.Println("Channel opened.")
 
-	// Declare and bind
-	_, queue, err := pubsub.DeclareAndBind(
+	// Subscribe to game logs
+	err = pubsub.SubscribeGob(
 		conn,
 		routing.ExchangePerilTopic,
 		routing.GameLogSlug,
 		routing.GameLogSlug+".*",
 		pubsub.Durable,
+		handlerGameLogs(),
 	)
 	if err != nil {
-		log.Fatalf("error declaring and binding queue to exchange: %v", err)
+		log.Fatalf("error subscriging to game logs: %v", err)
 	}
-	fmt.Printf("queue declared and bound: %v.\n", queue.Name)
 
 	// Server Help
 	gamelogic.PrintServerHelp()

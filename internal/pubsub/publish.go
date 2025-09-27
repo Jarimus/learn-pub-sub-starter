@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/gob"
 	"encoding/json"
+	"time"
 
 	"github.com/jarimus/learn-pub-sub-starter/internal/routing"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -34,6 +35,11 @@ func PublishGob[T any](ch *amqp.Channel, exchange, key string, val T) error {
 	})
 }
 
-func PublishGameLogs[T any](ch *amqp.Channel, warInitiator string, val T) error {
-	return PublishGob(ch, routing.ExchangePerilTopic, routing.GameLogSlug+"."+warInitiator, val)
+func PublishGameLogs(ch *amqp.Channel, warInitiator string, msg string) error {
+	gameLog := routing.GameLog{
+		CurrentTime: time.Now(),
+		Message:     msg,
+		Username:    warInitiator,
+	}
+	return PublishGob(ch, routing.ExchangePerilTopic, routing.GameLogSlug+"."+warInitiator, gameLog)
 }

@@ -1,6 +1,8 @@
 package pubsub
 
 import (
+	"bytes"
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
 
@@ -103,6 +105,73 @@ func SubscribeJSON[T any](
 			target, err := unmarshaller(msg.Body)
 			if err != nil {
 				fmt.Printf("could not unmarshal message: %v\n", err)
+				continue
+			}
+			switch handler(target) {
+			case Ack:
+				// fmt.Print("Acked.")
+				msg.Ack(false)
+			case NackRequeue:
+				// fmt.Print("NackRequeued.")
+				msg.Nack(false, true)
+			case NackDiscard:
+				// fmt.Print("NackDiscarded.")
+				msg.Nack(false, false)
+			}
+		}
+	}()
+	return nil
+}
+
+func SubscribeGob[T any](
+	conn *amqp.Connection,
+	exchange,
+	queueName,
+	key string,
+	queueType SimpleQueueType, // an enum to represent "durable" or "transient"
+	handler func(T) AckType,
+) error {
+	channel, queue, err := DeclareAndBind(
+		conn,
+		exchange,
+		queueName,
+		key,
+		queueType,
+	)
+	if err != nil {
+		return err
+	}
+	if queue.Name == "" {
+		return fmt.Errorf("cannot subscribe to queue: queue does not exist")
+	}
+	msgs, err := channel.Consume(
+		queue.Name,
+		"",
+		false,
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		return fmt.Errorf("error opening delivery channel: %v", err)
+	}
+
+	// Decode
+	decoding := func(data []byte) (T, error) {
+		reader := bytes.NewBuffer(data)
+		var target T
+		dec := gob.NewDecoder(reader)
+		err := dec.Decode(&target)
+		return target, err
+	}
+
+	go func() {
+		defer channel.Close()
+		for msg := range msgs {
+			target, err := decoding(msg.Body)
+			if err != nil {
+				fmt.Printf("could not decode message: %v\n", err)
 				continue
 			}
 			switch handler(target) {
