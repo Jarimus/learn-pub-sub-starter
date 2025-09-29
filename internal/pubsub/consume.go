@@ -81,6 +81,12 @@ func SubscribeJSON[T any](
 	if queue.Name == "" {
 		return fmt.Errorf("cannot subscribe to queue: queue does not exist")
 	}
+
+	err = channel.Qos(10, 0, false)
+	if err != nil {
+
+	}
+
 	msgs, err := channel.Consume(
 		queue.Name,
 		"",
@@ -144,6 +150,12 @@ func SubscribeGob[T any](
 	if queue.Name == "" {
 		return fmt.Errorf("cannot subscribe to queue: queue does not exist")
 	}
+
+	err = channel.Qos(10, 0, false)
+	if err != nil {
+
+	}
+
 	msgs, err := channel.Consume(
 		queue.Name,
 		"",
