@@ -35,11 +35,11 @@ func PublishGob[T any](ch *amqp.Channel, exchange, key string, val T) error {
 	})
 }
 
-func PublishGameLogs(ch *amqp.Channel, warInitiator string, msg string) error {
+func PublishGameLogs(ch *amqp.Channel, userName string, msg string) error {
 	gameLog := routing.GameLog{
 		CurrentTime: time.Now(),
 		Message:     msg,
-		Username:    warInitiator,
+		Username:    userName,
 	}
-	return PublishGob(ch, routing.ExchangePerilTopic, routing.GameLogSlug+"."+warInitiator, gameLog)
+	return PublishGob(ch, routing.ExchangePerilTopic, routing.GameLogSlug+"."+userName, gameLog)
 }

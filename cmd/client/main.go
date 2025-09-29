@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"strconv"
 
 	"github.com/jarimus/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/jarimus/learn-pub-sub-starter/internal/pubsub"
@@ -112,7 +113,27 @@ func main() {
 		case "help":
 			gamelogic.PrintClientHelp()
 		case "spam":
-			fmt.Println("Spamming not allowed!")
+			if len(words) < 2 {
+				fmt.Println("Please provide spawn count. Eg. 'spam 100'")
+				break
+			}
+			count, err := strconv.Atoi(words[1])
+			if err != nil {
+				fmt.Println("Please provide a valid count for spam.")
+				break
+			}
+			for range count {
+				maliciousMsg := gamelogic.GetMaliciousLog()
+				err = pubsub.PublishGameLogs(
+					publishChannel,
+					gamestate.GetUsername(),
+					maliciousMsg,
+				)
+				if err != nil {
+					fmt.Printf("Error publishing malicious message: %v", err)
+				}
+			}
+			fmt.Printf("%d spam sent successfully.\n", count)
 		case "quit":
 			gamelogic.PrintQuit()
 			return
